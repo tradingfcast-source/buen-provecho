@@ -1,0 +1,39 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno — NUNCA commitear
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Build del frontend
+frontend/dist/
+frontend/dist-ssr/
+
+# Supabase local
+.supabase/
+
+# Scripts de migración con credenciales
+apply_migrations.mjs
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.sw?
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# Base de datos local
+*.db
+*.sqlite
+
+# Caché Python
+__pycache__/
+*.pyc
