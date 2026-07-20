@@ -15,15 +15,27 @@ export default function Planificacion() {
   const { currentFamily, activePlan, setActivePlan } = useFamilyStore()
   const [rows,    setRows]    = useState<SlotRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [recipes, setRecipes] = useState<Recipe[]>([])
+  const [picker,  setPicker]  = useState<DishSlot | null>(null)
+  const [saving,  setSaving]  = useState(false)
 
   useEffect(() => {
     if (!currentFamily) { setLoading(false); return }
     loadPlanAndSlots()
+    loadRecipes()
   }, [currentFamily])
+
+  async function loadRecipes() {
+    const { data } = await supabase
+      .from('recipes').select('*')
+      .eq('family_id', currentFamily!.id)
+      .eq('meal_type', 'lunch')
+      .order('name')
+    setRecipes((data ?? []) as Recipe[])
+  }
 
   async function loadPlanAndSlots() {
     setLoading(true)
-
     const { data: rawPlans } = await supabase
       .from('weekly_plans').select('*')
       .eq('family_id', currentFamily!.id)
@@ -36,7 +48,9 @@ export default function Planificacion() {
 
     const { data: rawSlots } = await supabase
       .from('dish_slots').select('*')
-      .eq('family_id', currentFamily!.id).order('sort_order')
+      .eq('family_id', currentFamily!.id)
+      .eq('meal_slot_id', '00000001-0000-0000-0000-000000000022') // Almuerzo
+      .order('sort_order')
     const dishSlots = (rawSlots ?? []) as DishSlot[]
 
     const { data: rawAssign } = await supabase
@@ -54,6 +68,41 @@ export default function Planificacion() {
       assignment: bySlot[slot.id] ?? null,
     })))
     setLoading(false)
+  }
+
+  async function assignRecipe(slot: DishSlot, recipe: Recipe) {
+    if (!activePlan || saving) return
+    setSaving(true)
+
+    // Eliminar assignment existente para este slot en este plan
+    await supabase.from('dish_assignments')
+      .delete()
+      .eq('weekly_plan_id', activePlan.id)
+      .eq('dish_slot_id', slot.id)
+      .eq('is_adhoc', false)
+
+    // Insertar nuevo
+    const { error } = await supabase.from('dish_assignments').insert({
+      family_id:    currentFamily!.id,
+      weekly_plan_id: activePlan.id,
+      dish_slot_id: slot.id,
+      recipe_id:    recipe.id,
+      is_adhoc:     false,
+    })
+
+    setSaving(false)
+    setPicker(null)
+
+    if (error) {
+      toast.err('Error al asignar plato')
+    } else {
+      setRows(prev => prev.map(r =>
+        r.slot.id === slot.id
+          ? { ...r, assignment: { recipe, dish_slot_id: slot.id, recipe_id: recipe.id } as any }
+          : r
+      ))
+      toast.ok(`${recipe.name} asignado ✓`)
+    }
   }
 
   function slotLabel(slot: DishSlot, weekStart: string): string {
@@ -128,20 +177,11 @@ export default function Planificacion() {
                 </div>
                 <button
                   className="shrink-0 text-xs px-3 py-1.5 rounded-lg border border-[var(--color-brand)] text-[var(--color-brand)] hover:bg-[var(--color-brand-pale)] transition-colors"
-                  onClick={() => toast.info(`Asignación de recetas — próximamente`)}
+                  onClick={() => setPicker(slot)}
                 >
                   {assignment ? 'Cambiar' : 'Asignar'}
                 </button>
               </div>
-
-              {activePlan.status === 'voting' && (
-                <button
-                  className="mt-2 text-xs text-[var(--color-brand)] underline"
-                  onClick={() => toast.info('Votación — próximamente')}
-                >
-                  Ver votos
-                </button>
-              )}
             </div>
           ))}
 
@@ -151,6 +191,54 @@ export default function Planificacion() {
           >
             + Plato a demanda
           </button>
+        </div>
+      )}
+
+      {/* ── Modal picker de recetas ── */}
+      {picker && (
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-black/40"
+          onClick={() => setPicker(null)}
+        >
+          <div
+            className="w-full bg-white rounded-t-2xl max-h-[80vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white px-4 pt-4 pb-3 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-wide">
+                  {activePlan && slotLabel(picker, activePlan.week_start_date)}
+                </p>
+                <h2 className="font-semibold text-gray-800">Elige el plato de almuerzo</h2>
+              </div>
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500"
+                onClick={() => setPicker(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 space-y-2">
+              {recipes.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">Cargando catálogo…</p>
+              ) : (
+                recipes.map(recipe => (
+                  <button
+                    key={recipe.id}
+                    disabled={saving}
+                    onClick={() => assignRecipe(picker, recipe)}
+                    className="w-full text-left p-3 rounded-xl border border-gray-100 bg-gray-50 hover:border-[var(--color-brand)] hover:bg-[var(--color-brand-pale)] transition-colors disabled:opacity-50"
+                  >
+                    <p className="font-medium text-gray-800 text-sm">{recipe.name}</p>
+                    {recipe.description && (
+                      <p className="text-xs text-gray-500 mt-0.5">{recipe.description}</p>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
