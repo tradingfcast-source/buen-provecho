@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useFamilyStore } from '../store/familyStore'
+import { toast } from '../components/ui/Toast'
 import type { DishSlot, DishAssignment, Recipe, WeeklyPlan } from '../types/database'
 
 interface SlotRow {
@@ -102,7 +103,7 @@ export default function Planificacion() {
           <p>No hay plan activo esta semana.</p>
           <button
             className="mt-4 px-4 py-2 rounded-xl bg-[var(--color-brand)] text-white text-sm font-medium"
-            onClick={() => alert('TODO: crear nuevo plan')}
+            onClick={() => toast.info('Crear plan — próximamente')}
           >
             Crear plan
           </button>
@@ -127,7 +128,7 @@ export default function Planificacion() {
                 </div>
                 <button
                   className="shrink-0 text-xs px-3 py-1.5 rounded-lg border border-[var(--color-brand)] text-[var(--color-brand)] hover:bg-[var(--color-brand-pale)] transition-colors"
-                  onClick={() => alert(`TODO: editar bloque "${slot.name}"`)}
+                  onClick={() => toast.info(`Asignación de recetas — próximamente`)}
                 >
                   {assignment ? 'Cambiar' : 'Asignar'}
                 </button>
@@ -136,7 +137,7 @@ export default function Planificacion() {
               {activePlan.status === 'voting' && (
                 <button
                   className="mt-2 text-xs text-[var(--color-brand)] underline"
-                  onClick={() => alert('TODO: abrir votación')}
+                  onClick={() => toast.info('Votación — próximamente')}
                 >
                   Ver votos
                 </button>
@@ -146,7 +147,7 @@ export default function Planificacion() {
 
           <button
             className="w-full mt-2 py-3 rounded-xl border-2 border-dashed border-gray-200 text-sm text-gray-400 hover:border-[var(--color-brand)] hover:text-[var(--color-brand)] transition-colors"
-            onClick={() => alert('TODO: agregar plato a demanda al plan')}
+            onClick={() => toast.info('Plato a demanda — próximamente')}
           >
             + Plato a demanda
           </button>

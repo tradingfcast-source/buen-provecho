@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useFamilyStore } from '../store/familyStore'
+import { toast } from '../components/ui/Toast'
 import type { DishAssignment, MealSlot, Recipe } from '../types/database'
 
 interface SlotWithDish {
   slot:       MealSlot
   recipe:     Recipe | null
   assignment: DishAssignment | null
+  consumed:   boolean
 }
 
 const HOY_LABEL = new Intl.DateTimeFormat('es-PE', {
@@ -17,6 +19,7 @@ export default function Hoy() {
   const { currentFamily } = useFamilyStore()
   const [slots,   setSlots]   = useState<SlotWithDish[]>([])
   const [loading, setLoading] = useState(true)
+  const [consuming, setConsuming] = useState<string | null>(null)
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -28,13 +31,11 @@ export default function Hoy() {
   async function load() {
     setLoading(true)
 
-    // 1. Meal slots de la familia
     const { data: rawSlots } = await supabase
       .from('meal_slots').select('*')
       .eq('family_id', currentFamily!.id).order('sort_order')
     const mealSlots = (rawSlots ?? []) as MealSlot[]
 
-    // 2. Plan activo o planificado
     const { data: rawPlans } = await supabase
       .from('weekly_plans').select('id, week_start_date')
       .eq('family_id', currentFamily!.id)
@@ -45,7 +46,6 @@ export default function Hoy() {
     const assignBySlot: Record<string, { recipe: Recipe; assignment: DishAssignment }> = {}
 
     if (planIds.length > 0) {
-      // 3a. Asignaciones de bloque que incluyan hoy
       const { data: rawBlock } = await supabase
         .from('dish_assignments')
         .select('*, recipes(*), dish_slots(meal_slot_id, day_offsets), weekly_plans(week_start_date)')
@@ -59,36 +59,77 @@ export default function Hoy() {
         const offsets    = ((a.dish_slots as Record<string, number[]>)?.day_offsets ?? []) as number[]
         const mealSlotId = (a.dish_slots as Record<string, string>)?.meal_slot_id as string
         const recipe     = a.recipes as Recipe
-
         for (const offset of offsets) {
-          const blockDate = new Date(weekStart)
-          blockDate.setDate(blockDate.getDate() + offset)
-          if (blockDate.toISOString().slice(0, 10) === today && mealSlotId) {
+          const d = new Date(weekStart)
+          d.setDate(d.getDate() + offset)
+          if (d.toISOString().slice(0, 10) === today && mealSlotId) {
             assignBySlot[mealSlotId] = { recipe, assignment: a as unknown as DishAssignment }
           }
         }
       })
     }
 
-    // 3b. Ad-hoc de hoy (sobreescriben bloque)
     const { data: rawAdhoc } = await supabase
       .from('dish_assignments').select('*, recipes(*)')
       .eq('family_id', currentFamily!.id)
       .eq('is_adhoc', true).eq('adhoc_date', today)
-    const adhocAssignments = (rawAdhoc ?? []) as Array<DishAssignment & { recipes: Recipe }>
-
-    adhocAssignments.forEach(a => {
+    ;(rawAdhoc ?? []).forEach((a: any) => {
       if (a.adhoc_meal_slot_id && a.recipes) {
         assignBySlot[a.adhoc_meal_slot_id] = { recipe: a.recipes, assignment: a }
       }
     })
 
+    // Consumos de hoy
+    const { data: rawLogs } = await supabase
+      .from('consumption_logs').select('meal_slot_id')
+      .eq('family_id', currentFamily!.id)
+      .eq('consumed_date', today)
+    const consumedSlots = new Set((rawLogs ?? []).map((l: any) => l.meal_slot_id))
+
     setSlots(mealSlots.map(slot => ({
       slot,
       recipe:     assignBySlot[slot.id]?.recipe     ?? null,
       assignment: assignBySlot[slot.id]?.assignment ?? null,
+      consumed:   consumedSlots.has(slot.id),
     })))
     setLoading(false)
+  }
+
+  async function markConsumed(slotWithDish: SlotWithDish) {
+    if (!currentFamily || consuming) return
+    const { slot, recipe, consumed } = slotWithDish
+
+    if (consumed) {
+      // Desmarcar
+      await supabase.from('consumption_logs').delete()
+        .eq('family_id', currentFamily.id)
+        .eq('meal_slot_id', slot.id)
+        .eq('consumed_date', today)
+      setSlots(prev => prev.map(s =>
+        s.slot.id === slot.id ? { ...s, consumed: false } : s
+      ))
+      toast.info(`${slot.name} desmarcado`)
+      return
+    }
+
+    setConsuming(slot.id)
+    const { error } = await supabase.from('consumption_logs').insert({
+      family_id:     currentFamily.id,
+      meal_slot_id:  slot.id,
+      recipe_id:     slotWithDish.assignment?.recipe_id ?? null,
+      consumed_date: today,
+      notes:         null,
+    })
+    setConsuming(null)
+
+    if (error) {
+      toast.err('Error al registrar consumo')
+    } else {
+      setSlots(prev => prev.map(s =>
+        s.slot.id === slot.id ? { ...s, consumed: true } : s
+      ))
+      toast.ok(`${recipe?.name ?? slot.name} registrado ✓`)
+    }
   }
 
   if (!currentFamily) {
@@ -114,37 +155,48 @@ export default function Hoy() {
         </div>
       ) : (
         <div className="space-y-3">
-          {slots.map(({ slot, recipe, assignment }) => (
+          {slots.map((item) => (
             <div
-              key={slot.id}
-              className="flex items-center gap-3 p-4 rounded-xl border border-gray-100 bg-white shadow-sm"
+              key={item.slot.id}
+              className={`flex items-center gap-3 p-4 rounded-xl border bg-white shadow-sm transition-colors ${
+                item.consumed ? 'border-green-200 bg-green-50' : 'border-gray-100'
+              }`}
             >
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-                  {slot.name}
-                  {slot.default_time && (
-                    <span className="ml-1 normal-case">· {slot.default_time.slice(0, 5)}</span>
+                <p className={`text-xs font-medium uppercase tracking-wide ${
+                  item.consumed ? 'text-green-500' : 'text-gray-400'
+                }`}>
+                  {item.slot.name}
+                  {item.slot.default_time && (
+                    <span className="ml-1 normal-case">· {item.slot.default_time.slice(0, 5)}</span>
                   )}
                 </p>
-                {recipe ? (
-                  <p className="font-semibold text-gray-800 truncate">{recipe.name}</p>
+                {item.recipe ? (
+                  <p className={`font-semibold truncate ${item.consumed ? 'text-green-700 line-through' : 'text-gray-800'}`}>
+                    {item.recipe.name}
+                  </p>
                 ) : (
                   <p className="text-gray-400 italic text-sm">Sin plato asignado</p>
                 )}
               </div>
 
-              {recipe && assignment ? (
+              {item.recipe ? (
                 <button
-                  className="w-8 h-8 rounded-full border-2 border-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand)] hover:bg-[var(--color-brand-pale)] transition-colors"
-                  title="Marcar como consumido"
-                  onClick={() => alert('TODO: registrar consumo')}
+                  disabled={consuming === item.slot.id}
+                  onClick={() => markConsumed(item)}
+                  className={`w-9 h-9 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
+                    item.consumed
+                      ? 'border-green-500 bg-green-500 text-white'
+                      : 'border-[var(--color-brand)] text-[var(--color-brand)] hover:bg-[var(--color-brand-pale)]'
+                  } ${consuming === item.slot.id ? 'opacity-50' : ''}`}
+                  title={item.consumed ? 'Desmarcar' : 'Marcar como consumido'}
                 >
                   ✓
                 </button>
               ) : (
                 <button
                   className="text-xs px-2 py-1 rounded-lg bg-[var(--color-brand-pale)] text-[var(--color-brand)] font-medium"
-                  onClick={() => alert('TODO: agregar plato a demanda')}
+                  onClick={() => toast.info('Próximamente: agregar plato a demanda')}
                 >
                   + Plato
                 </button>
@@ -154,10 +206,9 @@ export default function Hoy() {
         </div>
       )}
 
-      {/* FAB: agregar plato a demanda */}
       <button
         className="fixed bottom-20 right-4 w-12 h-12 rounded-full bg-[var(--color-brand)] text-white shadow-lg text-xl flex items-center justify-center hover:opacity-90 transition"
-        onClick={() => alert('TODO: modal plato a demanda')}
+        onClick={() => toast.info('Próximamente: agregar plato a demanda')}
         title="Agregar plato a demanda"
       >
         +

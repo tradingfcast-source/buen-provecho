@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "puppeteer": "^24.43.1"
   }
 }

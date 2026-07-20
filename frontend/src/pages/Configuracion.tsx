@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useFamilyStore } from '../store/familyStore'
+import { toast } from '../components/ui/Toast'
 import type { DietaryPattern, FoodRestriction } from '../types/database'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -42,7 +43,7 @@ export default function Configuracion() {
         <p className="text-gray-500">No perteneces a ninguna familia aún.</p>
         <button
           className="px-4 py-2 rounded-xl bg-[var(--color-brand)] text-white text-sm font-medium"
-          onClick={() => alert('TODO: crear familia')}
+          onClick={() => toast.info('Crear familia — próximamente')}
         >
           Crear familia
         </button>
@@ -62,7 +63,7 @@ export default function Configuracion() {
           </p>
           <button
             className="mt-3 text-xs text-[var(--color-brand)] underline"
-            onClick={() => alert('TODO: editar datos de familia')}
+            onClick={() => toast.info('Editar configuración — próximamente')}
           >
             Editar configuración
           </button>
@@ -75,7 +76,7 @@ export default function Configuracion() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Miembros</h2>
           <button
             className="text-xs px-2 py-1 rounded-lg bg-[var(--color-brand-pale)] text-[var(--color-brand)]"
-            onClick={() => alert('TODO: agregar miembro')}
+            onClick={() => toast.info('Agregar miembro — próximamente')}
           >
             + Agregar
           </button>
@@ -101,7 +102,7 @@ export default function Configuracion() {
                     </div>
                     <button
                       className="text-xs text-gray-400 hover:text-[var(--color-brand)]"
-                      onClick={() => alert(`TODO: editar ${m.display_name}`)}
+                      onClick={() => toast.info(`Editar ${m.display_name} — próximamente`)}
                     >
                       ✏️
                     </button>
@@ -142,7 +143,7 @@ export default function Configuracion() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Restricciones</h2>
           <button
             className="text-xs px-2 py-1 rounded-lg bg-[var(--color-brand-pale)] text-[var(--color-brand)]"
-            onClick={() => alert('TODO: agregar restricción')}
+            onClick={() => toast.info('Agregar restricción — próximamente')}
           >
             + Agregar
           </button>

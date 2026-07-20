@@ -1,11 +1,12 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { useAuth }       from './hooks/useAuth'
-import AppShell          from './components/layout/AppShell'
-import Login             from './pages/Login'
-import Hoy               from './pages/Hoy'
-import Planificacion     from './pages/Planificacion'
-import Compras           from './pages/Compras'
-import Configuracion     from './pages/Configuracion'
+import { useAuth }          from './hooks/useAuth'
+import AppShell             from './components/layout/AppShell'
+import Login                from './pages/Login'
+import Hoy                  from './pages/Hoy'
+import Planificacion        from './pages/Planificacion'
+import Compras              from './pages/Compras'
+import Configuracion        from './pages/Configuracion'
+import { ToastContainer }   from './components/ui/Toast'
 
 function AuthGate() {
   const { session, loading } = useAuth()
@@ -38,6 +39,7 @@ function AuthGate() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ToastContainer />
       <AuthGate />
     </BrowserRouter>
   )

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useFamilyStore } from '../store/familyStore'
+import { toast } from '../components/ui/Toast'
 import type { ShoppingList, ShoppingListItem, ItemStatus } from '../types/database'
 
 export default function Compras() {
@@ -175,7 +176,7 @@ export default function Compras() {
       <div className="mt-2 p-3 rounded-xl border border-dashed border-gray-200 text-center">
         <button
           className="text-sm text-gray-400 hover:text-[var(--color-brand)]"
-          onClick={() => alert('TODO: pantalla de despensa')}
+          onClick={() => toast.info('Gestión de despensa — próximamente')}
         >
           📦 Gestionar despensa
         </button>
